@@ -148,8 +148,7 @@ class SubEX:
         if self.output_file is not None:
             Path(self.output_file).touch()
 
-    @staticmethod
-    def dns_query(domain: str, query: str = "A") -> Union[str, int]:
+    def dns_query(self, domain: str, query: str = "A") -> Union[str, int]:
         """
         This method will send dns query request
         :param domain: get domain for dns request
@@ -157,7 +156,7 @@ class SubEX:
         :return: Nothing
         """
         try:
-            dns.query(domain, query)
+            self.resolvers.query(domain, query)
             return domain
         except dns.NoAnswer:
             return 0
