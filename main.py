@@ -5,6 +5,7 @@ import logging
 import validators
 from rich.logging import RichHandler
 from rich.console import Console
+from rich.progress import track
 
 import dns.resolver as dns
 import subprocess
@@ -15,7 +16,6 @@ from requests import (
 from concurrent.futures import (
     ThreadPoolExecutor, as_completed
 )
-from bs4 import BeautifulSoup
 from pathlib import Path
 from re import (
     findall, IGNORECASE, escape
@@ -147,6 +147,49 @@ class SubEX:
         self.dnsx: str = dnsx
 
         Path(self.output_file).touch()
+        log.info("Checking scripts ...")
+        check_scripts = self.check_scripts()
+        if check_scripts:
+            for error in check_scripts:
+                log.critical(error)
+            sys.exit(True)
+
+    @staticmethod
+    def os_command(command: list) -> list:
+        """
+        This method will run the command and return it result in output
+        :param command: list of commands
+        """
+        command = subprocess.Popen(
+            command,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE
+        ).communicate()
+
+        out, err = command[0].decode("UTF-8"), command[1].decode("UTF-8")
+
+        return [out, err]
+
+    def check_scripts(self) -> list:
+        """
+        This method will check binary of scripts are exists or not
+        """
+        errors: list = list()
+
+        # Load script path's
+        scripts = [
+            self._subfinder, self.shuffle_dns,
+            self.mass_dns, self.dnsgen, self.dnsx
+        ]
+
+        # Loop into scripts
+        for script in track(scripts):
+            try:
+                _, err = self.os_command([script, "-silent"])
+            except FileNotFoundError as error:
+                errors.append(error)
+                continue
+        return errors
 
     def dns_query(self, domain: str) -> Union[str, int]:
         """
@@ -154,13 +197,9 @@ class SubEX:
         :param domain: get domain for dns request
         :return: Nothing
         """
-        command = f"echo {domain} | {self.dnsx} -a -silent"
-        command = subprocess.Popen(
-            ["sh", "-c", command],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE
-        ).communicate()
-        out, err = command[0].decode("UTF-8"), command[1].decode("UTF-8")
+        out, err = self.os_command(
+            ["sh", "-c", f"echo {domain} | {self.dnsx} -a -silent"]
+        )
 
         return False if err != "" else domain
 
@@ -186,11 +225,7 @@ class SubEX:
         :return: list of subdomains
         """
         # Get subdomains using subfinder
-        subdomains: list = subprocess.Popen(
-            [self._subfinder, "-d", self.domain, "-silent"],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE
-        ).communicate()[0].decode("utf-8").splitlines()
+        subdomains, _ = self.os_command([self._subfinder, "-d", self.domain, "-silent"])
 
         results: list = []
         with ThreadPoolExecutor(max_workers=self.thread) as executor:
@@ -214,24 +249,17 @@ class SubEX:
         :return: list of subdomains
         """
         # Get subdomains using shuffledns
-        shuffle_dns: list = subprocess.Popen(
-            [self.shuffle_dns, "-m", self.mass_dns, "-d", self.domain, "-r", self.resolvers, "-w",
-             self.wordlist, "-silent"],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE
-        ).communicate()[0].decode("UTF-8").splitlines()
+        shuffle_dns: list = self.os_command([self.shuffle_dns, "-m", self.mass_dns, "-d", self.domain, "-r",
+                                             self.resolvers, "-w", self.wordlist, "-silent"])[0].splitlines()
+
+        # Append found subdomains in shuffledns
+        [self.output.append(_subd) if _subd not in self.output and validators.domain(_subd) else ...
+         for _subd in shuffle_dns]
 
         self.write(self.output) if self.output_file is not None else ...
-        # Append found subdomains in shuffledns
-        [self.output.append(_subd) if _subd not in self.output else ... for _subd in shuffle_dns]
 
         # Get subdomains using dnsgen
-        command = f"cat {self.output_file} | {self.dnsgen} -"
-        dns_gen: list = subprocess.Popen(
-            ["sh", "-c", command],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE
-        ).communicate()[0].decode("UTF-8").splitlines()
+        dns_gen: list = self.os_command(["sh", "-c", f"cat {self.output_file} | {self.dnsgen} -"])[0].splitlines()
 
         results: list = []
         with ThreadPoolExecutor(max_workers=self.thread) as executor:
@@ -256,8 +284,7 @@ class SubEX:
         """
         data: str = get(self.crtsh.format(self.domain)).content.decode("utf-8")
         finder = findall(
-            f'<tr>(?:\s|\S)*?href="\?id=([0-9]+?)"(?:\s|\S)*?<td>([*_a-zA-Z0-9.-]+?\.{escape(self.domain)})</td>(?:\s|\S)*?</tr>', # noqa
-            # noqa
+            f'<tr>(?:\s|\S)*?href="\?id=([0-9]+?)"(?:\s|\S)*?<td>([*_a-zA-Z0-9.-]+?\.{escape(self.domain)})</td>(?:\s|\S)*?</tr>',  # noqa
             data, IGNORECASE
         )
         results: list = []
@@ -284,7 +311,7 @@ class SubEX:
         :return: list of subdomains
         """
         methods: list = [
-            self.subfinder,self.dns_brute,
+            self.subfinder, self.dns_brute,
             self.crt_sh
         ]
         log.info(f"Loaded {len(methods)} methods") if not self.silent else ...
