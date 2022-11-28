@@ -226,8 +226,9 @@ class SubEX:
         [self.output.append(_subd) if _subd not in self.output else ... for _subd in shuffle_dns]
 
         # Get subdomains using dnsgen
+        command = f"cat {self.output_file} | {self.dnsgen} -"
         dns_gen: list = subprocess.Popen(
-            ["echo", f"{self.output_file}", "|", self.dnsgen, "-"],
+            ["sh", "-c", command],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE
         ).communicate()[0].decode("UTF-8").splitlines()
@@ -237,7 +238,7 @@ class SubEX:
             for subdomain in dns_gen:
                 results.append(
                     executor.submit(self.dns_query, subdomain)
-                ) if subdomain not in self.output else ...
+                ) if subdomain not in self.output and validators.domain(subdomain) else ...
 
             for result in as_completed(results):
                 self.output.append(result.result()) if result.result() else ...
