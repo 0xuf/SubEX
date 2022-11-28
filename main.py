@@ -2,12 +2,11 @@ import argparse
 import sys
 import random
 import logging
+import validators
 from rich.logging import RichHandler
 from rich.console import Console
 
 import dns.resolver as dns
-import dns.exception as _dns
-import dns.name as dns_
 import subprocess
 import os
 from requests import (
