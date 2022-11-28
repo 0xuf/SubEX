@@ -33,6 +33,7 @@ options:
                         Path to the shuffledns binary (default = /usr/bin/shuffledns)
   -msd , --mass-dns     Path to the massdns binary (default = /usr/bin/massdns)
   -dnsg , --dnsgen      Path to the dnsgen binary (default = /usr/bin/dnsgen)
+  -dnsx                
 ```
 
 # License
@@ -49,6 +50,7 @@ Discord: NotAvailable#7600
 [Python-URL]: https://python.org
 [ShuffleDNS]: https://img.shields.io/badge/ShuffleDNS-20232A?style=for-the-badge
 [ShuffleDNS-Url]: https://github.com/projectdiscovery/shuffledns
+[Dnsx-Url]: https://github.com/projectdiscovery/dnsx
 [MassDNS]: https://img.shields.io/badge/MassDNS-123124?style=for-the-badge
 [MassDNS-URL]: https://github.com/blechschmidt/massdns
 [DnsGEN]: https://img.shields.io/badge/DnsGEN-35495E?style=for-the-badge
