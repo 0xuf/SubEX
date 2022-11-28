@@ -89,7 +89,7 @@ class SubEX:
     }
 
     def __init__(self, domain: str, thread: int = 5, resolvers: str = "resolvers.txt",
-                 wordlist: str = "wordlist.txt", output: str = None, silent: bool = False,
+                 wordlist: str = "wordlist.txt", output: str = "/tmp/subex.txt", silent: bool = False,
                  show_result: bool = True, subfinder: str = "/usr/bin/subfinder",
                  shuffle_dns: str = "/usr/bin/shuffledns", mass_dns: str = "/usr/bin/massdns",
                  dnsgen: str = "/usr/bin/dnsgen", dnsx: str = "/usr/bin/dnsx") -> None:
