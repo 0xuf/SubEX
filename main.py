@@ -146,8 +146,7 @@ class SubEX:
         self.dnsgen: str = dnsgen
         self.dnsx: str = dnsx
 
-        if self.output_file is not None:
-            Path(self.output_file).touch()
+        Path(self.output_file).touch()
 
     def dns_query(self, domain: str) -> Union[str, int]:
         """
