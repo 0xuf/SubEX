@@ -209,30 +209,6 @@ class SubEX:
 
         return self.output
 
-    def abuse_ipdb(self) -> list:
-        """
-        This method obtains the list of subdomains using abuseipdb.com
-        :return: list of subdomains
-        """
-        data: bytes = self.session.get(self.abuseipdb).content
-        parser: BeautifulSoup = BeautifulSoup(data.decode("UTF-8"), "html.parser")
-        columns: list = parser.findAll("div", class_="row")[7].findAll("div", class_="col-md-3")
-        subdomains: list = [f"{column}.{self.domain}" for column in columns]
-
-        results: list = []
-        with ThreadPoolExecutor(max_workers=self.thread) as executor:
-            for subdomain in subdomains:
-                executor.submit(self.dns_query, subdomain) if subdomain not in self.output else ...
-
-            for result in as_completed(results):
-                self.output.append(result.result()) if result.result() else ...
-
-            executor.shutdown()
-
-        self.write(self.output) if self.output_file is not None else ...
-
-        return self.output
-
     def dns_brute(self) -> list:
         """
         This method obtains the list of subdomains using dns bruteforce
@@ -308,8 +284,8 @@ class SubEX:
         :return: list of subdomains
         """
         methods: list = [
-            self.subfinder, self.abuse_ipdb,
-            self.dns_brute, self.crt_sh
+            self.subfinder,self.dns_brute,
+            self.crt_sh
         ]
         log.info(f"Loaded {len(methods)} methods") if not self.silent else ...
         if not self.silent:
