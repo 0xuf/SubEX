@@ -93,7 +93,7 @@ class SubEX:
                  wordlist: str = "wordlist.txt", output: str = None, silent: bool = False,
                  show_result: bool = True, subfinder: str = "/usr/bin/subfinder",
                  shuffle_dns: str = "/usr/bin/shuffledns", mass_dns: str = "/usr/bin/massdns",
-                 dnsgen: str = "/usr/bin/dnsgen") -> None:
+                 dnsgen: str = "/usr/bin/dnsgen", dnsx: str = "/usr/bin/dnsx") -> None:
         """
         __init__ magic method
         :param domain: receive domain as input to get subdomains
@@ -107,6 +107,7 @@ class SubEX:
         :param shuffle_dns: Path to the shuffledns binary
         :param mass_dns: Path to the massdns binary
         :param dnsgen: Path to the dnsgen binary
+        :param dnsx: Path to the dnsx binary
         """
 
         log.info(f"Running SubEX v‌{self.version} on {domain}") if not silent else ...
@@ -144,28 +145,26 @@ class SubEX:
         self.shuffle_dns: str = shuffle_dns
         self.mass_dns: str = mass_dns
         self.dnsgen: str = dnsgen
+        self.dnsx: str = dnsx
 
         if self.output_file is not None:
             Path(self.output_file).touch()
 
-    def dns_query(self, domain: str, query: str = "A") -> Union[str, int]:
+    def dns_query(self, domain: str) -> Union[str, int]:
         """
         This method will send dns query request
         :param domain: get domain for dns request
-        :param query: get query for dns request
         :return: Nothing
         """
-        try:
-            self.resolvers.query(domain, query)
-            return domain
-        except dns.NoAnswer:
-            return 0
-        except dns.NXDOMAIN:
-            return 0
-        except _dns.Timeout:
-            return 0
-        except dns_.EmptyLabel:
-            return 0
+        command = f"echo {domain} | {self.dnsx} -a -silent"
+        command = subprocess.Popen(
+            ["sh", "-c", command],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE
+        ).communicate()
+        out, err = command[0].decode("UTF-8"), command[1].decode("UTF-8")
+
+        return False if err != "" else domain
 
     def write(self, subdomains: list) -> None:
         """
@@ -199,7 +198,7 @@ class SubEX:
         with ThreadPoolExecutor(max_workers=self.thread) as executor:
             for subdomain in subdomains:
                 results.append(
-                    executor.submit(self.dns_query, subdomain, "A")
+                    executor.submit(self.dns_query, subdomain)
                 ) if subdomain not in self.output else ...
 
             for result in as_completed(results):
@@ -224,7 +223,7 @@ class SubEX:
         results: list = []
         with ThreadPoolExecutor(max_workers=self.thread) as executor:
             for subdomain in subdomains:
-                executor.submit(self.dns_query, subdomain, "A") if subdomain not in self.output else ...
+                executor.submit(self.dns_query, subdomain) if subdomain not in self.output else ...
 
             for result in as_completed(results):
                 self.output.append(result.result()) if result.result() else ...
@@ -263,7 +262,7 @@ class SubEX:
         with ThreadPoolExecutor(max_workers=self.thread) as executor:
             for subdomain in dns_gen:
                 results.append(
-                    executor.submit(self.dns_query, subdomain, "A")
+                    executor.submit(self.dns_query, subdomain)
                 ) if subdomain not in self.output else ...
 
             for result in as_completed(results):
@@ -292,7 +291,7 @@ class SubEX:
                 subdomain = domain.split("@")[-1]
                 if "*" not in subdomain:
                     results.append(
-                        executor.submit(self.dns_query, subdomain, "A")
+                        executor.submit(self.dns_query, subdomain)
                     ) if subdomain not in self.output else ...
 
             for result in as_completed(results):
@@ -370,6 +369,10 @@ if __name__ == "__main__":
         argument_parser.add_argument(
             "-shd", "--shuffle-dns", required=False, metavar="",
             help="Path to the shuffledns binary (default = /usr/bin/shuffledns)"
+        )
+        argument_parser.add_argument(
+            "-dnsx", required=False, metavar="",
+            help="Path to the dnsx binary (default = /usr/bin/dnsx)"
         )
         argument_parser.add_argument(
             "-msd", "--mass-dns", required=False, metavar="",
