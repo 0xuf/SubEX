@@ -56,7 +56,7 @@ class Printing:
  | (___  _   _| |__ | |__   \ V / 
   \___ \| | | | '_ \|  __|   > <  
   ____) | |_| | |_) | |____ / . \ 
- |_____/ \__,_|_.__/|______/_/ \_\  v1.0
+ |_____/ \__,_|_.__/|______/_/ \_\  v1.0.1
 
        github.com/0xuf/subex                    
 
@@ -75,7 +75,7 @@ class SubEX:
     crtsh: str = "https://crt.sh/?q={}"
     session: Session = Session()
     base_dir: Path = Path(__file__).resolve().parent
-    version: str = "1.0"
+    version: str = "1.0.1"
     headers: dict = {
         "Host": "www.abuseipdb.com",
         "User-Agent": "Mozilla/5.0 (X11; Linux x86_64; rv:103.0) Gecko/20100101 Firefox/103.0",
