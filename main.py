@@ -13,9 +13,7 @@ import os
 from requests import (
     Session, get
 )
-from concurrent.futures import (
-    ThreadPoolExecutor, as_completed
-)
+
 from pathlib import Path
 from re import (
     findall, IGNORECASE, escape
@@ -75,6 +73,7 @@ class SubEX:
     session: Session = Session()
     base_dir: Path = Path(__file__).resolve().parent
     version: str = "1.0.2"
+    subdomains: list = list()
     headers: dict = {
         "Host": "www.abuseipdb.com",
         "User-Agent": "Mozilla/5.0 (X11; Linux x86_64; rv:103.0) Gecko/20100101 Firefox/103.0",
@@ -87,12 +86,14 @@ class SubEX:
         "Sec-Fetch-User": "?1",
         "Connection": "close",
     }
+    output.clear()
 
     def __init__(self, domain: str, thread: int = 5, resolvers: str = "resolvers.txt",
-                 wordlist: str = "wordlist.txt", output: str = "/tmp/subex.txt", silent: bool = False,
+                 wordlist: str = "wordlist.txt", output: str = None, silent: bool = False,
                  show_result: bool = True, subfinder: str = "/usr/bin/subfinder",
                  shuffle_dns: str = "/usr/bin/shuffledns", mass_dns: str = "/usr/bin/massdns",
                  dnsgen: str = "/usr/bin/dnsgen", dnsx: str = "/usr/bin/dnsx") -> None:
+
         """
         __init__ magic method
         :param domain: receive domain as input to get subdomains
@@ -145,9 +146,15 @@ class SubEX:
         self.mass_dns: str = mass_dns
         self.dnsgen: str = dnsgen
         self.dnsx: str = dnsx
+        self.domain_temporary_file: Path = Path(f"/tmp/{domain}.txt")
 
-        Path(self.output_file).touch()
-        log.info("Checking scripts ...")
+        if self.domain_temporary_file.exists():
+            os.remove(self.domain_temporary_file)
+            self.domain_temporary_file.touch()
+        else:
+            self.domain_temporary_file.touch()
+
+        log.info("Checking scripts ...") if not silent else ...
         check_scripts = self.check_scripts()
         if check_scripts:
             for error in check_scripts:
@@ -183,12 +190,20 @@ class SubEX:
         ]
 
         # Loop into scripts
-        for script in track(scripts):
-            try:
-                _, err = self.os_command([script, "-silent"])
-            except FileNotFoundError as error:
-                errors.append(error)
-                continue
+        if not self.silent:
+            for script in track(scripts):
+                try:
+                    _, err = self.os_command([script, "-silent"])
+                except FileNotFoundError as error:
+                    errors.append(error)
+                    continue
+        else:
+            for script in scripts:
+                try:
+                    _, err = self.os_command([script, "-silent"])
+                except FileNotFoundError as error:
+                    errors.append(error)
+                    continue
         return errors
 
     def dns_query(self, domain: str) -> Union[str, int]:
@@ -197,11 +212,11 @@ class SubEX:
         :param domain: get domain for dns request
         :return: Nothing
         """
-        out, err = self.os_command(
+        out, _ = self.os_command(
             ["sh", "-c", f"echo {domain} | {self.dnsx} -a -silent"]
         )
 
-        return False if err != "" else domain
+        return False if out == "" else domain
 
     def write(self, subdomains: list) -> None:
         """
@@ -209,15 +224,15 @@ class SubEX:
         :param subdomains: list of subdomains
         :return: Nothing
         """
+        out: list = list()
+        out.clear()
 
-        with open(self.output_file, mode="r") as subs:
-            _subdomains: list = subs.read().splitlines()
-            subs.close()
-
-        with open(self.output_file, mode="a") as subs_:
+        with open(self.domain_temporary_file, mode="a") as output_file:
             for subdomain in subdomains:
-                subs_.write(f"{subdomain}\n") if subdomain not in _subdomains else ...
-            subs_.close()
+                if subdomain not in self.subdomains and validators.domain(subdomain) and not \
+                        subdomain.startswith("www") and subdomain != self.domain:
+                    self.subdomains.append(subdomain)
+                    output_file.write(f"{subdomain}\n")
 
     def subfinder(self) -> list:
         """
@@ -225,21 +240,10 @@ class SubEX:
         :return: list of subdomains
         """
         # Get subdomains using subfinder
-        subdomains, _ = self.os_command([self._subfinder, "-d", self.domain, "-silent"])
+        subdomains = self.os_command(["sh", "-c", f"{self._subfinder} -d {self.domain} -silent | uniq | {self.dnsx} "
+                                                  f"-a -silent"])[0].splitlines()
 
-        results: list = []
-        with ThreadPoolExecutor(max_workers=self.thread) as executor:
-            for subdomain in subdomains:
-                results.append(
-                    executor.submit(self.dns_query, subdomain)
-                ) if subdomain not in self.output else ...
-
-            for result in as_completed(results):
-                self.output.append(result.result()) if result.result() else ...
-
-            executor.shutdown()
-
-        self.write(self.output) if self.output_file is not None else ...
+        self.write(subdomains)
 
         return self.output
 
@@ -249,31 +253,18 @@ class SubEX:
         :return: list of subdomains
         """
         # Get subdomains using shuffledns
-        shuffle_dns: list = self.os_command([self.shuffle_dns, "-m", self.mass_dns, "-d", self.domain, "-r",
-                                             self.resolvers, "-w", self.wordlist, "-silent"])[0].splitlines()
+        shuffle_dns: list = self.os_command(["sh", "-c", f"{self.shuffle_dns} -m {self.mass_dns} -d {self.domain} -r "
+                                                         f"{self.resolvers} -w {self.wordlist} -silent | uniq | "
+                                                         f"{self.dnsx} -a -silent"])[0].splitlines()
 
         # Append found subdomains in shuffledns
-        [self.output.append(_subd) if _subd not in self.output and validators.domain(_subd) else ...
-         for _subd in shuffle_dns]
-
-        self.write(self.output) if self.output_file is not None else ...
+        self.write(shuffle_dns)
 
         # Get subdomains using dnsgen
-        dns_gen: list = self.os_command(["sh", "-c", f"cat {self.output_file} | {self.dnsgen} -"])[0].splitlines()
+        dns_gen: list = self.os_command(["sh", "-c", f"cat {self.domain_temporary_file} | {self.dnsgen} - | "
+                                                     f"uniq | dnsx -a -silent"])[0].splitlines()
 
-        results: list = []
-        with ThreadPoolExecutor(max_workers=self.thread) as executor:
-            for subdomain in dns_gen:
-                results.append(
-                    executor.submit(self.dns_query, subdomain)
-                ) if subdomain not in self.output and validators.domain(subdomain) else ...
-
-            for result in as_completed(results):
-                self.output.append(result.result()) if result.result() else ...
-
-            executor.shutdown()
-
-        self.write(self.output) if self.output_file is not None else ...
+        self.write(dns_gen)
 
         return self.output
 
@@ -282,26 +273,21 @@ class SubEX:
         This method obtains the list of subdomains using crt.sh
         :return: list of subdomains
         """
+        crt_subdomains: list = list()
         data: str = get(self.crtsh.format(self.domain)).content.decode("utf-8")
         finder = findall(
-            f'<tr>(?:\s|\S)*?href="\?id=([0-9]+?)"(?:\s|\S)*?<td>([*_a-zA-Z0-9.-]+?\.{escape(self.domain)})</td>(?:\s|\S)*?</tr>',  # noqa
+            f'<tr>(?:\s|\S)*?href="\?id=([0-9]+?)"(?:\s|\S)*?<td>([*_a-zA-Z0-9.-]+?\.{escape(self.domain)})</td>(?:\s|\S)*?</tr>', # noqa
             data, IGNORECASE
         )
-        results: list = []
-        with ThreadPoolExecutor(max_workers=self.thread) as executor:
-            for cert, domain in finder:
-                subdomain = domain.split("@")[-1]
-                if "*" not in subdomain:
-                    results.append(
-                        executor.submit(self.dns_query, subdomain)
-                    ) if subdomain not in self.output else ...
 
-            for result in as_completed(results):
-                self.output.append(result.result()) if result.result() else ...
+        for cert, domain in finder:
+            subdomain = domain.split("@")[-1]
+            if "*" not in subdomain:
+                if subdomain not in crt_subdomains:
+                    if self.dns_query(domain=subdomain):
+                        self.write([subdomain])
 
-            executor.shutdown()
-
-        self.write(self.output) if self.output_file is not None else ...
+        del crt_subdomains
 
         return self.output
 
@@ -311,8 +297,8 @@ class SubEX:
         :return: list of subdomains
         """
         methods: list = [
-            self.subfinder, self.dns_brute,
-            self.crt_sh
+            self.subfinder, self.crt_sh,
+            self.dns_brute
         ]
         log.info(f"Loaded {len(methods)} methods") if not self.silent else ...
         if not self.silent:
@@ -327,9 +313,22 @@ class SubEX:
 
         if self.show_result:
             console.print("[bold cyan]---------------------------------------") if not self.silent else ...
-            for output in self.output:
-                console.print(f"[white]{output}")
+
+            with open(self.domain_temporary_file, mode="r") as output_file:
+                output_file = output_file.read().splitlines()
+
+            if self.output_file is not None:
+                with open(self.output_file, mode="a") as _out:
+                    for output in output_file:
+                        console.print(f"[white]{output}") if not self.silent else print(output)
+                        _out.write(f"{output}\n")
+                    _out.close()
+            else:
+                for output in output_file:
+                    console.print(f"[white]{output}") if not self.silent else print(output)
+
             console.print("[bold cyan]---------------------------------------") if not self.silent else ...
+
         return self.output
 
 
@@ -345,9 +344,7 @@ if __name__ == "__main__":
         argument_parser.add_argument(
             "-d", "--domain", metavar="", required=True, help="Target Domain"
         )
-        argument_parser.add_argument(
-            "-t", "--thread", metavar="", required=False, help="Number of concurrent threads (default = 5)"
-        )
+
         argument_parser.add_argument(
             "-r", "--resolvers", metavar="", required=False,
             help=f"list of resolvers to use (default = {path}/resolvers.txt)"

@@ -23,17 +23,17 @@ usage: main.py [-h] -d  [-t] [-r] [-w] [-o] [-s] [-sr] [-sf] [-shd] [-msd] [-dns
 options:
   -h, --help            show this help message and exit
   -d , --domain         Target Domain
-  -t , --thread         Number of concurrent threads (default = 5)
-  -r , --resolvers      list of resolvers to use (default = /home/$USER/subex/resolvers.txt)
-  -w , --wordlist       list of words to dns bruteforce (default = /home/$USER/subex/wordlist.txt)
+  -r , --resolvers      list of resolvers to use (default = /home/x/SubEX/resolvers.txt)
+  -w , --wordlist       list of words to dns bruteforce (default = /home/x/SubEX/wordlist.txt)
   -o , --output         file to save results
   -s, --silent          display only results in the output
   -sf , --subfinder     Path to the subfinder binary (default = /usr/bin/subfinder)
   -shd , --shuffle-dns 
                         Path to the shuffledns binary (default = /usr/bin/shuffledns)
+  -dnsx                 Path to the dnsx binary (default = /usr/bin/dnsx)
   -msd , --mass-dns     Path to the massdns binary (default = /usr/bin/massdns)
   -dnsg , --dnsgen      Path to the dnsgen binary (default = /usr/bin/dnsgen)
-  -dnsx                
+              
 ```
 
 # License
